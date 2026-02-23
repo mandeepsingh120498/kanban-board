@@ -1,4 +1,11 @@
-import { useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type DragEvent,
+  type KeyboardEvent,
+} from 'react'
 import { FiPlus } from 'react-icons/fi'
 import { Card } from './Card'
 import type { ColumnType } from '../types/kanban'
@@ -29,44 +36,77 @@ export function Column({
   const [isDragOver, setIsDragOver] = useState(false)
   const inputRef = useRef<HTMLInputElement | null>(null)
 
-  const submitCard = () => {
+  useEffect(() => {
+    if (isAdding) {
+      inputRef.current?.focus()
+    }
+  }, [isAdding])
+
+  const resetAddForm = useCallback(() => {
+    setIsAdding(false)
+    setNewCardTitle('')
+  }, [])
+
+  const submitCard = useCallback(() => {
     const title = newCardTitle.trim()
     if (!title) {
       return
     }
 
     onAddCard(column.id, title)
-    setNewCardTitle('')
-    setIsAdding(false)
-  }
+    resetAddForm()
+  }, [column.id, newCardTitle, onAddCard, resetAddForm])
 
-  const openAddForm = () => {
+  const openAddForm = useCallback(() => {
     setIsAdding(true)
-    setTimeout(() => inputRef.current?.focus(), 0)
-  }
+  }, [])
+
+  const handleCardInputKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLInputElement>) => {
+      if (event.key === 'Enter') {
+        submitCard()
+      }
+      if (event.key === 'Escape') {
+        resetAddForm()
+      }
+    },
+    [resetAddForm, submitCard],
+  )
+
+  const handleDragOver = useCallback((event: DragEvent<HTMLElement>) => {
+    event.preventDefault()
+    setIsDragOver(true)
+  }, [])
+
+  const handleDragLeave = useCallback(
+    (event: DragEvent<HTMLElement>) => {
+      const relatedTarget = event.relatedTarget as Node | null
+      if (relatedTarget && event.currentTarget.contains(relatedTarget)) {
+        return
+      }
+
+      setIsDragOver(false)
+    },
+    [],
+  )
+
+  const handleDrop = useCallback(
+    (event: DragEvent<HTMLElement>) => {
+      event.preventDefault()
+      setIsDragOver(false)
+      onDropToColumnEnd(column.id)
+    },
+    [column.id, onDropToColumnEnd],
+  )
 
   return (
     <section
       className={`kanban-column${isDragOver ? ' is-drag-over' : ''}`}
       data-column={column.id}
       data-column-id={column.id}
-      onDragOver={(event) => {
-        event.preventDefault()
-        setIsDragOver(true)
-      }}
-      onDragLeave={(event) => {
-        const relatedTarget = event.relatedTarget as Node | null
-        if (relatedTarget && event.currentTarget.contains(relatedTarget)) {
-          return
-        }
-
-        setIsDragOver(false)
-      }}
-      onDrop={(event) => {
-        event.preventDefault()
-        setIsDragOver(false)
-        onDropToColumnEnd(column.id)
-      }}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
     >
       <header className="column-header">
         <div className="column-header-title">
@@ -86,27 +126,13 @@ export function Column({
             onChange={(event) => setNewCardTitle(event.target.value)}
             placeholder="Enter card title"
             className="card-input"
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                submitCard()
-              }
-              if (event.key === 'Escape') {
-                setIsAdding(false)
-                setNewCardTitle('')
-              }
-            }}
+            onKeyDown={handleCardInputKeyDown}
           />
           <div className="column-add-actions">
             <button onClick={submitCard} className="add-card-btn">
               Add
             </button>
-            <button
-              onClick={() => {
-                setIsAdding(false)
-                setNewCardTitle('')
-              }}
-              className="cancel-card-btn"
-            >
+            <button onClick={resetAddForm} className="cancel-card-btn">
               Cancel
             </button>
           </div>
