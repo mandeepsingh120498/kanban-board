@@ -155,6 +155,19 @@
   position: relative;
   cursor: move;
   touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.kanban-card.is-dragging {
+  opacity: 0.35;
+}
+
+.kanban-drag-overlay {
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.2);
+  cursor: grabbing;
+  max-width: 100%;
 }
 
 .kanban-card::before {

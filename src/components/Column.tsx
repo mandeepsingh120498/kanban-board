@@ -1,9 +1,15 @@
 import {
+  useDroppable,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import {
   useCallback,
   useEffect,
   useRef,
   useState,
-  type DragEvent,
   type KeyboardEvent,
 } from 'react'
 import { FiPlus } from 'react-icons/fi'
@@ -12,29 +18,29 @@ import type { ColumnType } from '../types/kanban'
 
 type ColumnProps = {
   column: ColumnType
+  columnDndId: string
   onAddCard: (columnId: string, title: string) => void
   onDeleteCard: (cardId: string, columnId: string) => void
   onRenameCard: (cardId: string, columnId: string, title: string) => void
-  onDragStart: (cardId: string, fromColumnId: string) => void
-  onDropOnCard: (targetColumnId: string, targetCardId: string) => void
-  onDropToColumnEnd: (targetColumnId: string) => void
-  onCancelDrag: () => void
 }
 
 export function Column({
   column,
+  columnDndId,
   onAddCard,
   onDeleteCard,
   onRenameCard,
-  onDragStart,
-  onDropOnCard,
-  onDropToColumnEnd,
-  onCancelDrag,
 }: ColumnProps) {
   const [newCardTitle, setNewCardTitle] = useState('')
   const [isAdding, setIsAdding] = useState(false)
-  const [isDragOver, setIsDragOver] = useState(false)
   const inputRef = useRef<HTMLInputElement | null>(null)
+  const { setNodeRef, isOver } = useDroppable({
+    id: columnDndId,
+    data: {
+      type: 'column',
+      columnId: column.id,
+    },
+  })
 
   useEffect(() => {
     if (isAdding) {
@@ -73,40 +79,12 @@ export function Column({
     [resetAddForm, submitCard],
   )
 
-  const handleDragOver = useCallback((event: DragEvent<HTMLElement>) => {
-    event.preventDefault()
-    setIsDragOver(true)
-  }, [])
-
-  const handleDragLeave = useCallback(
-    (event: DragEvent<HTMLElement>) => {
-      const relatedTarget = event.relatedTarget as Node | null
-      if (relatedTarget && event.currentTarget.contains(relatedTarget)) {
-        return
-      }
-
-      setIsDragOver(false)
-    },
-    [],
-  )
-
-  const handleDrop = useCallback(
-    (event: DragEvent<HTMLElement>) => {
-      event.preventDefault()
-      setIsDragOver(false)
-      onDropToColumnEnd(column.id)
-    },
-    [column.id, onDropToColumnEnd],
-  )
-
   return (
     <section
-      className={`kanban-column${isDragOver ? ' is-drag-over' : ''}`}
+      ref={setNodeRef}
+      className={`kanban-column${isOver ? ' is-drag-over' : ''}`}
       data-column={column.id}
       data-column-id={column.id}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
     >
       <header className="column-header">
         <div className="column-header-title">
@@ -139,21 +117,23 @@ export function Column({
         </div>
       )}
 
-      <div className="column-cards">
-        {column.cards.map((card) => (
-          <Card
-            key={card.id}
-            card={card}
-            columnId={column.id}
-            onDelete={onDeleteCard}
-            onRename={onRenameCard}
-            onDragStart={onDragStart}
-            onDropOnCard={onDropOnCard}
-            onDropToColumnEnd={onDropToColumnEnd}
-            onCancelDrag={onCancelDrag}
-          />
-        ))}
-      </div>
+      <SortableContext
+        items={column.cards.map((card) => `card:${card.id}`)}
+        strategy={verticalListSortingStrategy}
+      >
+        <div className="column-cards">
+          {column.cards.map((card) => (
+            <Card
+              key={card.id}
+              dndId={`card:${card.id}`}
+              card={card}
+              columnId={column.id}
+              onDelete={onDeleteCard}
+              onRename={onRenameCard}
+            />
+          ))}
+        </div>
+      </SortableContext>
     </section>
   )
 }
