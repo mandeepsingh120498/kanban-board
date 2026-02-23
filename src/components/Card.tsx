@@ -4,7 +4,7 @@ import {
   useRef,
   useState,
   type KeyboardEvent,
-  type TouchEvent,
+  type PointerEvent,
 } from 'react'
 import { FiTrash2 } from 'react-icons/fi'
 import type { CardItem } from '../types/kanban'
@@ -33,8 +33,9 @@ export function Card({
   const [isEditing, setIsEditing] = useState(false)
   const [draftTitle, setDraftTitle] = useState(card.title)
   const [isTitleClipped, setIsTitleClipped] = useState(false)
-  const touchStart = useRef<{ x: number; y: number } | null>(null)
-  const touchDragging = useRef(false)
+  const pointerStart = useRef<{ x: number; y: number } | null>(null)
+  const pointerDragging = useRef(false)
+  const activePointerId = useRef<number | null>(null)
   const titleButtonRef = useRef<HTMLButtonElement | null>(null)
 
   useEffect(() => {
@@ -96,46 +97,66 @@ export function Card({
     [cancelEditing, saveTitle],
   )
 
-  const handleTouchStart = useCallback((event: TouchEvent<HTMLElement>) => {
-    const touch = event.touches[0]
-    touchStart.current = { x: touch.clientX, y: touch.clientY }
-    touchDragging.current = false
-  }, [])
+  const handlePointerDown = useCallback(
+    (event: PointerEvent<HTMLElement>) => {
+      if (event.pointerType !== 'touch' || isEditing) {
+        return
+      }
 
-  const handleTouchMove = useCallback(
-    (event: TouchEvent<HTMLElement>) => {
-      const touch = event.touches[0]
-      const start = touchStart.current
+      pointerStart.current = { x: event.clientX, y: event.clientY }
+      pointerDragging.current = false
+      activePointerId.current = event.pointerId
+    },
+    [isEditing],
+  )
+
+  const handlePointerMove = useCallback(
+    (event: PointerEvent<HTMLElement>) => {
+      if (
+        event.pointerType !== 'touch' ||
+        activePointerId.current !== event.pointerId
+      ) {
+        return
+      }
+
+      const start = pointerStart.current
       if (!start) {
         return
       }
 
-      const movedX = Math.abs(touch.clientX - start.x)
-      const movedY = Math.abs(touch.clientY - start.y)
-      if (!touchDragging.current && movedX + movedY > 10) {
+      const movedX = Math.abs(event.clientX - start.x)
+      const movedY = Math.abs(event.clientY - start.y)
+      if (!pointerDragging.current && movedX + movedY > 10) {
         onDragStart(card.id, columnId)
-        touchDragging.current = true
+        pointerDragging.current = true
       }
 
-      if (touchDragging.current) {
+      if (pointerDragging.current) {
         event.preventDefault()
       }
     },
     [card.id, columnId, onDragStart],
   )
 
-  const handleTouchEnd = useCallback(
-    (event: TouchEvent<HTMLElement>) => {
-      const touch = event.changedTouches[0]
-      touchStart.current = null
+  const handlePointerUp = useCallback(
+    (event: PointerEvent<HTMLElement>) => {
+      if (
+        event.pointerType !== 'touch' ||
+        activePointerId.current !== event.pointerId
+      ) {
+        return
+      }
 
-      if (!touchDragging.current) {
+      pointerStart.current = null
+      activePointerId.current = null
+
+      if (!pointerDragging.current) {
         return
       }
 
       const targetElement = document.elementFromPoint(
-        touch.clientX,
-        touch.clientY,
+        event.clientX,
+        event.clientY,
       ) as HTMLElement | null
 
       const cardTarget = targetElement?.closest('[data-card-id]') as
@@ -146,7 +167,7 @@ export function Card({
         const targetColumnId = cardTarget.dataset.columnId
         if (targetCardId && targetColumnId) {
           onDropOnCard(targetColumnId, targetCardId)
-          touchDragging.current = false
+          pointerDragging.current = false
           return
         }
       }
@@ -158,20 +179,21 @@ export function Card({
         const targetColumnId = columnTarget.dataset.columnId
         if (targetColumnId) {
           onDropToColumnEnd(targetColumnId)
-          touchDragging.current = false
+          pointerDragging.current = false
           return
         }
       }
 
-      touchDragging.current = false
+      pointerDragging.current = false
       onCancelDrag()
     },
     [onCancelDrag, onDropOnCard, onDropToColumnEnd],
   )
 
-  const handleTouchCancel = useCallback(() => {
-    touchStart.current = null
-    touchDragging.current = false
+  const handlePointerCancel = useCallback(() => {
+    pointerStart.current = null
+    pointerDragging.current = false
+    activePointerId.current = null
     onCancelDrag()
   }, [onCancelDrag])
 
@@ -189,10 +211,10 @@ export function Card({
         event.stopPropagation()
         onDropOnCard(columnId, card.id)
       }}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-      onTouchCancel={handleTouchCancel}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
     >
       <div className="card-body">
         {isEditing ? (
