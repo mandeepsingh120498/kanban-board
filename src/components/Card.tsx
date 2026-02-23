@@ -32,12 +32,41 @@ export function Card({
 }: CardProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [draftTitle, setDraftTitle] = useState(card.title)
+  const [isTitleClipped, setIsTitleClipped] = useState(false)
   const touchStart = useRef<{ x: number; y: number } | null>(null)
   const touchDragging = useRef(false)
+  const titleButtonRef = useRef<HTMLButtonElement | null>(null)
 
   useEffect(() => {
     setDraftTitle(card.title)
   }, [card.title])
+
+  useEffect(() => {
+    if (isEditing) {
+      setIsTitleClipped(false)
+      return
+    }
+
+    const updateClippedState = () => {
+      const titleElement = titleButtonRef.current
+      if (!titleElement) {
+        setIsTitleClipped(false)
+        return
+      }
+
+      const clipped =
+        titleElement.scrollWidth > titleElement.clientWidth ||
+        titleElement.scrollHeight > titleElement.clientHeight
+      setIsTitleClipped(clipped)
+    }
+
+    updateClippedState()
+    window.addEventListener('resize', updateClippedState)
+
+    return () => {
+      window.removeEventListener('resize', updateClippedState)
+    }
+  }, [card.title, isEditing])
 
   const cancelEditing = useCallback(() => {
     setDraftTitle(card.title)
@@ -176,7 +205,12 @@ export function Card({
             className="card-input"
           />
         ) : (
-          <button className="card-title" onClick={() => setIsEditing(true)}>
+          <button
+            ref={titleButtonRef}
+            className="card-title"
+            onClick={() => setIsEditing(true)}
+            title={isTitleClipped ? card.title : undefined}
+          >
             {card.title}
           </button>
         )}
